@@ -17,11 +17,11 @@ concurrency:
 
 jobs:
   deploy:
+    runs-on: ubuntu-latest
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
-    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -38,3 +38,8 @@ jobs:
       - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Show deployment URL
+        run: |
+          echo "Deployment successful!"
+          echo "Website URL: ${{ steps.deployment.outputs.page_url }}"
