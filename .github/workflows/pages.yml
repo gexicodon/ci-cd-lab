@@ -38,8 +38,7 @@ jobs:
       - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Show deployment URL
-        run: |
-          echo "Deployment successful!"
-          echo "Website URL: ${{ steps.deployment.outputs.page_url }}"
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
