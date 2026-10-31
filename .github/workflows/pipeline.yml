@@ -4,23 +4,58 @@ name: Pipeline
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: HTML validation
+        id: html
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            ghcr.io/validator/validator:latest \
+            vnu --errors-only /work/index.html
+
       - name: Smoke test container
+        if: always()
         run: |
           echo "Starting container verification..."
+
+          if [ "${{ steps.html.outcome }}" != "success" ]; then
+            echo "HTML validation failed."
+            echo "Checking HTML file with grep..."
+
+            grep -nE '<(html|head|body|p|h1)([[:space:]>])' index.html
+            GREP_CODE=$?
+
+            echo "grep exit code: $GREP_CODE"
+            echo "OK: HTML validation failure detected"
+
+            exit 1
+          fi
+
+          docker build -t my-site .
+          docker run -d -p 8080:80 --name test-site my-site
+
+          sleep 3
+          curl --fail http://localhost:8080
+
           echo "OK"
+          docker stop test-site
 
   release:
     needs: ci
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       packages: write
@@ -31,10 +66,13 @@ jobs:
 
       - name: Log in to GHCR
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
 
       - name: Build and push
         run: |
           IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}
-          docker build -t $IMAGE:latest .
-          docker push $IMAGE:latest
+          docker build -t "$IMAGE:latest" .
+          docker push "$IMAGE:latest"
